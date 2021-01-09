@@ -9,7 +9,7 @@ import pandas as pd
 from tqdm import tqdm
 from torch.utils.data import TensorDataset, DataLoader
 from transformers import BertTokenizer, BertForSequenceClassification, AdamW, get_linear_schedule_with_warmup
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, matthews_corrcoef
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser()
@@ -70,6 +70,10 @@ def load_data(path):
             assert len(line_split) == 4
             ans = tokenizer.encode_plus(line_split[1], line_split[2], max_length=args.max_seq_length,
                                         padding="max_length", truncation="longest_first")
+        elif args.dataset == "CoLA":
+            assert len(line_split) == 4
+            ans = tokenizer.encode_plus(line_split[3], max_length=args.max_seq_length,
+                                        padding="max_length", truncation=True)
         else:
             assert False
         input_ids.append(ans.input_ids)
@@ -97,6 +101,8 @@ def load_data(path):
                 assert False
         elif args.dataset == "WNLI":
             labels.append(int(line_split[3]))
+        elif args.dataset == "CoLA":
+            labels.append(int(line_split[1]))
         else:
             assert False
     return np.array(input_ids), np.array(attention_mask), np.array(token_type_ids), np.array(labels)
@@ -119,6 +125,9 @@ elif args.dataset == "RTE":
 elif args.dataset == "WNLI":
     train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/WNLI/train.tsv")
     dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/WNLI/dev.tsv")
+elif args.dataset == "CoLA":
+    train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/CoLA/train.tsv")
+    dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/CoLA/dev.tsv")
 else:
     assert False
 
@@ -183,4 +192,7 @@ for epoch in range(args.num_epochs):
         if args.dataset in ["MRPC", "QQP"]:
             cur_f1 = f1_score(np.array(y_dev), np.array(preds))
             print("f1: {:.4f}".format(cur_f1))
+        if args.dataset in ["CoLA"]:
+            cur_matthews = matthews_corrcoef(np.array(y_dev), np.array(preds))
+            print("matthews corrcoef: {:.4f}".format(cur_matthews))
 print("training time: {:.4f}".format(time.time() - start_time))
