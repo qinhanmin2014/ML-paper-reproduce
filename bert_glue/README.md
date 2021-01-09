@@ -6,6 +6,11 @@ reference:
 - https://github.com/huggingface/transformers/tree/master/examples/text-classification
 
 MRPC:
+
+```
+python bert_glue.py -report_step 10
+```
+
 - Microsoft Research Paraphrase Corpus consists of sentence pairs automatically extracted from online news sources, with human annotations for whether the sentences in the pair are semantically equivalent
 - bert paper: F1 88.9%
 - transformers: F1/Accuracy	88.85%/84.07%

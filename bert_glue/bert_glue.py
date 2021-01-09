@@ -1,5 +1,6 @@
 import os
 import argparse
+import time
 import torch
 import torch.nn as nn
 import random
@@ -22,7 +23,7 @@ parser.add_argument('-warm_up_proportion', default=0.1, type=float)
 parser.add_argument('-gradient_accumulation_step', default=1, type=int)
 parser.add_argument('-bert_path', default='bert-base-uncased', type=str)
 parser.add_argument('-dataset', default='MRPC', type=str)
-parser.add_argument('-report_step', default=10, type=int)
+parser.add_argument('-report_step', default=100, type=int)
 args = parser.parse_args()
 
 random.seed(args.seed)
@@ -50,6 +51,22 @@ def load_data(path):
             assert len(line_split) == 6
             ans = tokenizer.encode_plus(line_split[3], line_split[4], max_length=args.max_seq_length,
                                         padding="max_length", truncation="longest_first")
+        elif args.dataset == "SST-2":
+            assert len(line_split) == 3
+            ans = tokenizer.encode_plus(line_split[0], max_length=args.max_seq_length,
+                                        padding="max_length", truncation=True)
+        elif args.dataset == "QNLI":
+            assert len(line_split) == 4
+            ans = tokenizer.encode_plus(line_split[1], line_split[2], max_length=args.max_seq_length,
+                                        padding="max_length", truncation="longest_first")
+        elif args.dataset == "RTE":
+            assert len(line_split) == 4
+            ans = tokenizer.encode_plus(line_split[1], line_split[2], max_length=args.max_seq_length,
+                                        padding="max_length", truncation="longest_first")
+        elif args.dataset == "WNLI":
+            assert len(line_split) == 4
+            ans = tokenizer.encode_plus(line_split[1], line_split[2], max_length=args.max_seq_length,
+                                        padding="max_length", truncation="longest_first")
         else:
             assert False
         input_ids.append(ans.input_ids)
@@ -59,6 +76,24 @@ def load_data(path):
             labels.append(int(line_split[0]))
         elif args.dataset == "QQP":
             labels.append(int(line_split[5]))
+        elif args.dataset == "SST-2":
+            labels.append(int(line_split[0]))
+        elif args.dataset == "QNLI":
+            if line_split[3] == "not_entailment":
+                labels.append(0)
+            elif line_split[3] == "entailment":
+                labels.append(1)
+            else:
+                assert False
+        elif args.dataset == "RTE":
+            if line_split[3] == "not_entailment":
+                labels.append(0)
+            elif line_split[3] == "entailment":
+                labels.append(1)
+            else:
+                assert False
+        elif args.dataset == "WNLI":
+            labels.append(int(line_split[3]))
         else:
             assert False
     return np.array(input_ids), np.array(attention_mask), np.array(token_type_ids), np.array(labels)
@@ -69,6 +104,12 @@ if args.dataset == "MRPC":
 elif args.dataset == "QQP":
     train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/QQP/train.tsv")
     dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/QQP/dev.tsv")
+elif args.dataset == "SST-2":
+    train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/SST-2/train.tsv")
+    dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/SST-2/dev.tsv")
+elif args.dataset == "QNLI":
+    train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/QNLI/train.tsv")
+    dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/QNLI/dev.tsv")
 else:
     assert False
 
@@ -96,6 +137,7 @@ scheduler = get_linear_schedule_with_warmup(
                 optimizer, num_warmup_steps=len(train_loader) * args.num_epochs * args.warm_up_proportion // args.gradient_accumulation_step,
                 num_training_steps=len(train_loader) * args.num_epochs // args.gradient_accumulation_step)
 total_step = len(train_loader)
+start_time = time.time()
 for epoch in range(args.num_epochs):
     model.train()
     model.zero_grad()
@@ -114,8 +156,8 @@ for epoch in range(args.num_epochs):
             scheduler.step()
             model.zero_grad()
         if (i + 1) % args.report_step == 0:
-            print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
-                   .format(epoch + 1, args.num_epochs, i + 1, total_step, loss.item()))
+            print ('[{}] Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
+                   .format(time.strftime("%Y-%m-%d %H:%M:%S"), epoch + 1, args.num_epochs, i + 1, total_step, loss.item()))
     model.eval()
     with torch.no_grad():
         preds = []
@@ -126,7 +168,10 @@ for epoch in range(args.num_epochs):
             cur_y = cur_y.to(device)
             outputs = model(cur_input_ids, cur_attention_mask, cur_token_type_ids)
             preds.extend(list(torch.max(outputs[0], 1)[1].cpu().numpy()))
-        cur_accuracy = accuracy_score(np.array(y_dev), np.array(preds))
-        cur_f1 = f1_score(np.array(y_dev), np.array(preds))
-        print("accuracy: {:.4f}".format(cur_accuracy))
-        print("f1: {:.4f}".format(cur_f1))
+        if args.dataset in ["MRPC", "QQP"]:
+            cur_accuracy = accuracy_score(np.array(y_dev), np.array(preds))
+            print("accuracy: {:.4f}".format(cur_accuracy))
+        if args.dataset in ["MRPC", "QQP", "SST-2", "QNLI", "RTE", "WNLI"]:
+            cur_f1 = f1_score(np.array(y_dev), np.array(preds))
+            print("f1: {:.4f}".format(cur_f1))
+print("training time: {:.4f}".format(time.time() - start_time))
