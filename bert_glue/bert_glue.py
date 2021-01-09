@@ -26,6 +26,9 @@ parser.add_argument('-dataset', default='MRPC', type=str)
 parser.add_argument('-report_step', default=100, type=int)
 args = parser.parse_args()
 
+if args.dataset in ["MRPC", "RTE", "WNLI"]:
+    args.report_step = 10
+
 random.seed(args.seed)
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -42,7 +45,7 @@ def load_data(path):
     input_ids, attention_mask, token_type_ids = [], [], []
     labels = []
     for line in tqdm(lines):
-        line_split = line.split("\t")
+        line_split = line.strip().split("\t")
         if args.dataset == "MRPC":
             assert len(line_split) == 5
             ans = tokenizer.encode_plus(line_split[3], line_split[4], max_length=args.max_seq_length,
@@ -52,7 +55,7 @@ def load_data(path):
             ans = tokenizer.encode_plus(line_split[3], line_split[4], max_length=args.max_seq_length,
                                         padding="max_length", truncation="longest_first")
         elif args.dataset == "SST-2":
-            assert len(line_split) == 3
+            assert len(line_split) == 2
             ans = tokenizer.encode_plus(line_split[0], max_length=args.max_seq_length,
                                         padding="max_length", truncation=True)
         elif args.dataset == "QNLI":
@@ -77,7 +80,7 @@ def load_data(path):
         elif args.dataset == "QQP":
             labels.append(int(line_split[5]))
         elif args.dataset == "SST-2":
-            labels.append(int(line_split[0]))
+            labels.append(int(line_split[1]))
         elif args.dataset == "QNLI":
             if line_split[3] == "not_entailment":
                 labels.append(0)
@@ -110,6 +113,12 @@ elif args.dataset == "SST-2":
 elif args.dataset == "QNLI":
     train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/QNLI/train.tsv")
     dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/QNLI/dev.tsv")
+elif args.dataset == "RTE":
+    train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/RTE/train.tsv")
+    dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/RTE/dev.tsv")
+elif args.dataset == "WNLI":
+    train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/WNLI/train.tsv")
+    dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/WNLI/dev.tsv")
 else:
     assert False
 
@@ -168,10 +177,10 @@ for epoch in range(args.num_epochs):
             cur_y = cur_y.to(device)
             outputs = model(cur_input_ids, cur_attention_mask, cur_token_type_ids)
             preds.extend(list(torch.max(outputs[0], 1)[1].cpu().numpy()))
-        if args.dataset in ["MRPC", "QQP"]:
+        if args.dataset in ["MRPC", "QQP", "SST-2", "QNLI", "RTE", "WNLI"]:
             cur_accuracy = accuracy_score(np.array(y_dev), np.array(preds))
             print("accuracy: {:.4f}".format(cur_accuracy))
-        if args.dataset in ["MRPC", "QQP", "SST-2", "QNLI", "RTE", "WNLI"]:
+        if args.dataset in ["MRPC", "QQP"]:
             cur_f1 = f1_score(np.array(y_dev), np.array(preds))
             print("f1: {:.4f}".format(cur_f1))
 print("training time: {:.4f}".format(time.time() - start_time))
