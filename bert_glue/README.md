@@ -14,7 +14,7 @@ python bert_glue.py -dataset CoLA
 - The Corpus of Linguistic Acceptability is a binary single-sentence classification task, where the goal is to predict whether an English sentence is linguistically “acceptable” or not
 - bert paper: Accuracy 52.1%
 - transformers: Matthew's corr 56.53%, training time 3:17
-- reproduced (average over 3 seeds): Matthew's corr 58.11%(2.27%), traning time 3:25
+- reproduced (average over 3 seeds): Matthew's corr 57.32%(1.49%), traning time 5:24
 
 SST-2:
 
@@ -26,6 +26,17 @@ python bert_glue.py -dataset SST-2
 - bert paper: Accuracy 93.5%
 - transformers: Accuracy 92.32%, training time 26:06
 - reproduced (average over 3 seeds): Accuracy 92.66%(0.34%), traning time 41:24
+
+STS-B:
+
+```
+python bert_glue.py -dataset STS-B
+```
+
+- The Semantic Textual Similarity Benchmark is a collection of sentence pairs drawn from news headlines and other sources. They were annotated with a score from 1 to 5 denoting how similar the two sentences are in terms of semantic meaning.
+- bert paper: Spearman corr. 85.8%
+- transformers: Person/Spearman corr. 88.64/88.48, training time 2:13
+- reproduced (average over 3 seeds): Person/Spearman corr. 89.29%(0.40%)/88.87%(0.47%), traning time 3:45
 
 MRPC:
 

@@ -10,6 +10,7 @@ from tqdm import tqdm
 from torch.utils.data import TensorDataset, DataLoader
 from transformers import BertTokenizer, BertForSequenceClassification, AdamW, get_linear_schedule_with_warmup
 from sklearn.metrics import accuracy_score, f1_score, matthews_corrcoef
+from scipy.stats import pearsonr, spearmanr
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser()
@@ -26,21 +27,32 @@ parser.add_argument('-dataset', default='MRPC', type=str)
 parser.add_argument('-report_step', default=100, type=int)
 args = parser.parse_args()
 
-if args.dataset in ["MRPC", "RTE", "WNLI"]:
+if args.dataset in ["MRPC", "RTE", "WNLI", "STS-B"]:
     args.report_step = 10
+
 
 random.seed(args.seed)
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 
 tokenizer = BertTokenizer.from_pretrained(args.bert_path)
-model = BertForSequenceClassification.from_pretrained(args.bert_path, num_labels=2)
+if args.dataset in ["MRPC", "QQP", "SST-2", "QNLI", "RTE", "WNLI", "CoLA"]:
+    model = BertForSequenceClassification.from_pretrained(args.bert_path, num_labels=2)
+elif args.dataset in ["STS-B"]:
+    model = BertForSequenceClassification.from_pretrained(args.bert_path, num_labels=1)
+else:
+    assert False
 model = torch.nn.DataParallel(model)
 model.to(device);
 
 def load_data(path):
     input_file = open(path, encoding='utf-8')
-    lines = input_file.readlines()[1:]
+    if args.dataset in ["MRPC", "QQP", "SST-2", "QNLI", "RTE", "WNLI", "STS-B"]:
+        lines = input_file.readlines()[1:]
+    elif args.dataset in ["CoLA"]:
+        lines = input_file.readlines()
+    else:
+        assert False
     input_file.close()
     input_ids, attention_mask, token_type_ids = [], [], []
     labels = []
@@ -74,6 +86,10 @@ def load_data(path):
             assert len(line_split) == 4
             ans = tokenizer.encode_plus(line_split[3], max_length=args.max_seq_length,
                                         padding="max_length", truncation=True)
+        elif args.dataset == "STS-B":
+            assert len(line_split) == 10
+            ans = tokenizer.encode_plus(line_split[7], line_split[8], max_length=args.max_seq_length,
+                                        padding="max_length", truncation="longest_first")
         else:
             assert False
         input_ids.append(ans.input_ids)
@@ -103,6 +119,8 @@ def load_data(path):
             labels.append(int(line_split[3]))
         elif args.dataset == "CoLA":
             labels.append(int(line_split[1]))
+        elif args.dataset == "STS-B":
+            labels.append(float(line_split[9]))
         else:
             assert False
     return np.array(input_ids), np.array(attention_mask), np.array(token_type_ids), np.array(labels)
@@ -128,17 +146,26 @@ elif args.dataset == "WNLI":
 elif args.dataset == "CoLA":
     train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/CoLA/train.tsv")
     dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/CoLA/dev.tsv")
+elif args.dataset == "STS-B":
+    train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/STS-B/train.tsv")
+    dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/STS-B/dev.tsv")
 else:
     assert False
 
 train_input_ids = torch.tensor(train_input_ids, dtype=torch.long)
 train_attention_mask = torch.tensor(train_attention_mask, dtype=torch.float)
 train_token_type_ids = torch.tensor(train_token_type_ids, dtype=torch.long)
-y_train = torch.tensor(y_train, dtype=torch.long)
+if args.dataset in ["STS-B"]:
+    y_train = torch.tensor(y_train, dtype=torch.float)
+else:
+    y_train = torch.tensor(y_train, dtype=torch.long)
 dev_input_ids = torch.tensor(dev_input_ids, dtype=torch.long)
 dev_attention_mask = torch.tensor(dev_attention_mask, dtype=torch.float)
 dev_token_type_ids = torch.tensor(dev_token_type_ids, dtype=torch.long)
-y_dev = torch.tensor(y_dev, dtype=torch.long)
+if args.dataset in ["STS-B"]:
+    y_dev = torch.tensor(y_dev, dtype=torch.float)
+else:
+    y_dev = torch.tensor(y_dev, dtype=torch.long)
 train_data = TensorDataset(train_input_ids, train_attention_mask, train_token_type_ids, y_train)
 train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
 dev_data = TensorDataset(dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev)
@@ -165,7 +192,10 @@ for epoch in range(args.num_epochs):
         cur_token_type_ids = cur_token_type_ids.to(device)
         cur_y = cur_y.to(device)
         outputs = model(cur_input_ids, cur_attention_mask, cur_token_type_ids)
-        loss = nn.CrossEntropyLoss()(outputs[0], cur_y)
+        if args.dataset in ["STS-B"]:
+            loss = nn.MSELoss()(outputs[0].view(-1), cur_y)
+        else:
+            loss = nn.CrossEntropyLoss()(outputs[0], cur_y)
         loss /= args.gradient_accumulation_step
         loss.backward()
         if (i + 1) % args.gradient_accumulation_step == 0:
@@ -185,7 +215,10 @@ for epoch in range(args.num_epochs):
             cur_token_type_ids = cur_token_type_ids.to(device)
             cur_y = cur_y.to(device)
             outputs = model(cur_input_ids, cur_attention_mask, cur_token_type_ids)
-            preds.extend(list(torch.max(outputs[0], 1)[1].cpu().numpy()))
+            if args.dataset in ["STS-B"]:
+                preds.extend(list(outputs[0].view(-1).cpu().numpy()))
+            else:
+                preds.extend(list(torch.max(outputs[0], 1)[1].cpu().numpy()))
         if args.dataset in ["MRPC", "QQP", "SST-2", "QNLI", "RTE", "WNLI"]:
             cur_accuracy = accuracy_score(np.array(y_dev), np.array(preds))
             print("accuracy: {:.4f}".format(cur_accuracy))
@@ -195,4 +228,10 @@ for epoch in range(args.num_epochs):
         if args.dataset in ["CoLA"]:
             cur_matthews = matthews_corrcoef(np.array(y_dev), np.array(preds))
             print("matthews corrcoef: {:.4f}".format(cur_matthews))
+        if args.dataset in ["STS-B"]:
+            preds = np.clip(np.array(preds), 0, 5)
+            cur_pearsonr = pearsonr(np.array(y_dev), preds)[0]
+            cur_spearmanr = spearmanr(np.array(y_dev), preds)[0]
+            print("pearson corrcoef: {:.4f}".format(cur_pearsonr))
+            print("spearman corrcoef: {:.4f}".format(cur_spearmanr))
 print("training time: {:.4f}".format(time.time() - start_time))
