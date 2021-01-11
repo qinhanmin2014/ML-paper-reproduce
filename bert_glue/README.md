@@ -60,6 +60,17 @@ python bert_glue.py -dataset QQP
 - transformers: Accuracy/F1 90.71%/87.49%, training time 2:22:26
 - reproduced (average over 3 seeds): Accuracy/F1 90.92%(0.19%)/87.82%(0.27%), traning time 3:51:28
 
+MNLI:
+
+```
+python bert_glue.py -dataset MNLI
+```
+
+- Multi-Genre Natural Language Inference is a large-scale, crowdsourced entailment classification task. Given a pair of sentences, the goal is to predict whether the second sentence is an entailment, contradiction, or neutral with respect to the first one
+- bert paper: Matched acc./Mismatched acc. 84.6%/83.4%
+- transformers: Matched acc./Mismatched acc. 83.91%/84.10%, training time 2:35:23
+- reproduced (average over 3 seeds): Matched acc./Mismatched acc. 84.46%(0.29%)/84.70(0.29%), traning time 4:17:03
+
 QNLI:
 
 ```

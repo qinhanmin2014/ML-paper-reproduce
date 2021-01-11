@@ -40,6 +40,8 @@ if args.dataset in ["MRPC", "QQP", "SST-2", "QNLI", "RTE", "WNLI", "CoLA"]:
     model = BertForSequenceClassification.from_pretrained(args.bert_path, num_labels=2)
 elif args.dataset in ["STS-B"]:
     model = BertForSequenceClassification.from_pretrained(args.bert_path, num_labels=1)
+elif args.dataset in ["MNLI"]:
+    model = BertForSequenceClassification.from_pretrained(args.bert_path, num_labels=3)
 else:
     assert False
 model = torch.nn.DataParallel(model)
@@ -47,7 +49,7 @@ model.to(device);
 
 def load_data(path):
     input_file = open(path, encoding='utf-8')
-    if args.dataset in ["MRPC", "QQP", "SST-2", "QNLI", "RTE", "WNLI", "STS-B"]:
+    if args.dataset in ["MRPC", "QQP", "SST-2", "QNLI", "RTE", "WNLI", "STS-B", "MNLI"]:
         lines = input_file.readlines()[1:]
     elif args.dataset in ["CoLA"]:
         lines = input_file.readlines()
@@ -90,6 +92,9 @@ def load_data(path):
             assert len(line_split) == 10
             ans = tokenizer.encode_plus(line_split[7], line_split[8], max_length=args.max_seq_length,
                                         padding="max_length", truncation="longest_first")
+        elif args.dataset == "MNLI":
+            ans = tokenizer.encode_plus(line_split[8], line_split[9], max_length=args.max_seq_length,
+                                        padding="max_length", truncation="longest_first")
         else:
             assert False
         input_ids.append(ans.input_ids)
@@ -121,6 +126,15 @@ def load_data(path):
             labels.append(int(line_split[1]))
         elif args.dataset == "STS-B":
             labels.append(float(line_split[9]))
+        elif args.dataset == "MNLI":
+            if line_split[-1] == "contradiction":
+                labels.append(0)
+            elif line_split[-1] == "entailment":
+                labels.append(1)
+            elif line_split[-1] == "neutral":
+                labels.append(2)
+            else:
+                assert False
         else:
             assert False
     return np.array(input_ids), np.array(attention_mask), np.array(token_type_ids), np.array(labels)
@@ -149,6 +163,10 @@ elif args.dataset == "CoLA":
 elif args.dataset == "STS-B":
     train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/STS-B/train.tsv")
     dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/STS-B/dev.tsv")
+elif args.dataset == "MNLI":
+    train_input_ids, train_attention_mask, train_token_type_ids, y_train = load_data("glue_data/MNLI/train.tsv")
+    dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev = load_data("glue_data/MNLI/dev_matched.tsv")
+    extra_dev_input_ids, extra_dev_attention_mask, extra_dev_token_type_ids, extra_y_dev = load_data("glue_data/MNLI/dev_mismatched.tsv")
 else:
     assert False
 
@@ -170,6 +188,13 @@ train_data = TensorDataset(train_input_ids, train_attention_mask, train_token_ty
 train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
 dev_data = TensorDataset(dev_input_ids, dev_attention_mask, dev_token_type_ids, y_dev)
 dev_loader = DataLoader(dev_data, batch_size=args.batch_size, shuffle=False)
+if args.dataset in ["MNLI"]:
+    extra_dev_input_ids = torch.tensor(extra_dev_input_ids, dtype=torch.long)
+    extra_dev_attention_mask = torch.tensor(extra_dev_attention_mask, dtype=torch.float)
+    extra_dev_token_type_ids = torch.tensor(extra_dev_token_type_ids, dtype=torch.long)
+    extra_y_dev = torch.tensor(extra_y_dev, dtype=torch.long)
+    extra_dev_data = TensorDataset(extra_dev_input_ids, extra_dev_attention_mask, extra_dev_token_type_ids, extra_y_dev)
+    extra_dev_loader = DataLoader(extra_dev_data, batch_size=args.batch_size, shuffle=False)
 
 param_optimizer = list(model.named_parameters())
 no_decay = ['bias', 'LayerNorm.weight']
@@ -234,4 +259,17 @@ for epoch in range(args.num_epochs):
             cur_spearmanr = spearmanr(np.array(y_dev), preds)[0]
             print("pearson corrcoef: {:.4f}".format(cur_pearsonr))
             print("spearman corrcoef: {:.4f}".format(cur_spearmanr))
+        if args.dataset in ["MNLI"]:
+            cur_accuracy = accuracy_score(np.array(y_dev), np.array(preds))
+            print("matched accuracy: {:.4f}".format(cur_accuracy))
+            preds = []
+            for cur_input_ids, cur_attention_mask, cur_token_type_ids, cur_y in tqdm(extra_dev_loader):
+                cur_input_ids = cur_input_ids.to(device)
+                cur_attention_mask = cur_attention_mask.to(device)
+                cur_token_type_ids = cur_token_type_ids.to(device)
+                cur_y = cur_y.to(device)
+                outputs = model(cur_input_ids, cur_attention_mask, cur_token_type_ids)
+                preds.extend(list(torch.max(outputs[0], 1)[1].cpu().numpy()))
+            cur_accuracy = accuracy_score(np.array(extra_y_dev), np.array(preds))
+            print("mismatched accuracy: {:.4f}".format(cur_accuracy))
 print("training time: {:.4f}".format(time.time() - start_time))
