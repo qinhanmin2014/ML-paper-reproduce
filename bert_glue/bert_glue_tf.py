@@ -1,5 +1,4 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import argparse
 import time
 import random
@@ -159,7 +158,7 @@ else:
 num_train_steps = train_input_ids.shape[0] * args.num_epochs // args.batch_size
 num_warmup_steps = int(num_train_steps * args.warm_up_proportion)
 if args.dataset in ["STS-B"]:
-    loss = tf.keras.losses.MSE()
+    loss = tf.keras.losses.MeanSquaredError()
 else:
     loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 lr_schedule = tf.keras.optimizers.schedules.PolynomialDecay(
