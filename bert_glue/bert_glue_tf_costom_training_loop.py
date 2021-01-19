@@ -33,7 +33,7 @@ parser.add_argument('-warm_up_proportion', default=0.1, type=float)
 parser.add_argument('-bert_path', default='bert-base-uncased', type=str)
 parser.add_argument('-dataset', default='MRPC', type=str)
 parser.add_argument('-report_step', default=100, type=int)
-args = parser.parse_args([])
+args = parser.parse_args()
 
 if args.dataset in ["MRPC", "RTE", "WNLI", "STS-B"]:
     args.report_step = 10
@@ -208,7 +208,10 @@ if args.dataset in ["MNLI"]:
 def train_step(cur_input_ids, cur_attention_mask, cur_token_type_ids, cur_y):
     with tf.GradientTape() as tape:
         logits = model([cur_input_ids, cur_attention_mask, cur_token_type_ids], training=True)
-        loss_value = loss(cur_y, logits[0])
+        if args.dataset in ["STS-B"]:
+            loss_value = loss(cur_y, tf.reshape(logits[0], [-1]))
+        else:
+            loss_value = loss(cur_y, logits[0])
     grads = tape.gradient(loss_value, model.trainable_weights)
     optimizer.apply_gradients(zip(grads, model.trainable_weights))
     return loss_value
@@ -230,7 +233,10 @@ for epoch in range(args.num_epochs):
     preds = []
     for cur_input_ids, cur_attention_mask, cur_token_type_ids, cur_y in tqdm(val_dataset):
         logits = test_step(cur_input_ids, cur_attention_mask, cur_token_type_ids, cur_y)
-        preds.extend(list(np.argmax(logits[0].numpy(), axis=1)))
+        if args.dataset in ["STS-B"]:
+            preds.extend(list(logits[0].numpy().ravel()))
+        else:
+            preds.extend(list(np.argmax(logits[0].numpy(), axis=1)))
     if args.dataset in ["MRPC", "QQP", "SST-2", "QNLI", "RTE", "WNLI"]:
         cur_accuracy = accuracy_score(np.array(y_dev), np.array(preds))
         print("accuracy: {:.4f}".format(cur_accuracy))
