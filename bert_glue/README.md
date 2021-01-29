@@ -78,6 +78,7 @@ python bert_glue_tf_costom_training_loop.py -dataset QQP
 - transformers: Accuracy/F1 90.71%/87.49%, training time 2:22:26
 - pytorch reproduced (average over 3 seeds): Accuracy/F1 90.92%(0.19%)/87.82%(0.27%), traning time 3:51:28
 - tensorflow reproduced (average over 3 runs): Accuracy/F1 91.00%(0.13%)/87.81%(0.21%), traning time 4:58:43
+- tensorflow custom training loop reproduced (average over 3 runs): Accuracy/F1 90.91%(0.19%)/87.79%(0.28%), traning time 4:50:44
 
 MNLI:
 
@@ -92,6 +93,7 @@ python bert_glue_tf_costom_training_loop.py -dataset MNLI
 - transformers: Matched acc./Mismatched acc. 83.91%/84.10%, training time 2:35:23
 - pytorch reproduced (average over 3 seeds): Matched acc./Mismatched acc. 84.46%(0.29%)/84.70(0.29%), traning time 4:17:03
 - tensorflow reproduced (average over 3 runs): Matched acc./Mismatched acc. 84.43%(0.35%)/84.54(0.24%), traning time 5:15:48
+- tensorflow custom training loop reproduced (average over 3 runs): Matched acc./Mismatched acc. 84.14%(0.26%)/84.46(0.23%), traning time 4:45:34
 
 QNLI:
 
