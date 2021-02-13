@@ -11,6 +11,7 @@ CoLA:
 python bert_glue.py -dataset CoLA
 python bert_glue_tf.py -dataset CoLA
 python bert_glue_tf_costom_training_loop.py -dataset CoLA
+CUDA_VISIBLE_DEVICES=0,1 python bert_glue.py -bert_path bert-large-uncased -dataset CoLA
 ```
 
 - The Corpus of Linguistic Acceptability is a binary single-sentence classification task, where the goal is to predict whether an English sentence is linguistically “acceptable” or not
@@ -19,6 +20,9 @@ python bert_glue_tf_costom_training_loop.py -dataset CoLA
 - pytorch reproduced (average over 3 seeds): Matthew's corr 57.32%(1.49%), traning time 5:24
 - tensorflow reproduced (average over 3 runs): Matthew's corr 58.57%(0.93%), traning time 7:21
 - tensorflow custom training loop reproduced (average over 3 runs): Matthew's corr 54.80%(0.88%), traning time 6:39
+- bert-large-uncased
+  - bert paper: Accuracy 60.5%
+  - pytorch reproduced (average over 3 seeds): Matthew's corr 60.44%(2.78%), traning time 13:07
 
 SST-2:
 
@@ -56,6 +60,7 @@ MRPC:
 python bert_glue.py -dataset MRPC
 python bert_glue_tf.py -dataset MRPC
 python bert_glue_tf_costom_training_loop.py -dataset MRPC
+CUDA_VISIBLE_DEVICES=0,1 python bert_glue.py -bert_path bert-large-uncased -dataset MRPC -learning_rate 1e-5
 ```
 
 - Microsoft Research Paraphrase Corpus consists of sentence pairs automatically extracted from online news sources, with human annotations for whether the sentences in the pair are semantically equivalent
@@ -64,6 +69,9 @@ python bert_glue_tf_costom_training_loop.py -dataset MRPC
 - pytorch reproduced (average over 3 seeds): F1/Accuracy 90.37%(0.47%)/86.11%(0.76%), traning time 2:18
 - tensorflow reproduced (average over 3 runs): F1/Accuracy 88.92%(0.37%)/84.31%(0.72%), traning time 3:20
 - tensorflow custom training loop reproduced (average over 3 runs): F1/Accuracy 89.43%(0.54%)/85.05%(0.80%), traning time 2:58
+- bert-large-uncased
+  - bert paper: F1 89.3%
+  - pytorch reproduced (average over 3 seeds): F1/Accuracy 90.13%(0.83%)/86.36%(1.03%), traning time 5:36
 
 QQP:
 
